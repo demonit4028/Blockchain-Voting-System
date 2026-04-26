@@ -276,3 +276,6 @@ python -m compileall app.py demo.py core consensus voting network client
 ```
 
 If everything works, the demo ends with `Demo complete!`, and the smoke test prints election results, a successful Merkle verification, and `Audit: PASSED`.
+
+![Cat](assets/cat.gif)
+![not Cat](assets/cute.gif)
