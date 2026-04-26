@@ -1,95 +1,108 @@
-from __future__ import annotations
+# demo.py
+"""
+Демонстрация всей системы локально — без запуска серверов.
+Запуск: python demo.py
+"""
+import time
 
-from client.verification import VoteVerifier
-from consensus.poa import ProofOfAuthority
 from core.blockchain import Blockchain
-from voting.ledger import VoteLedger
+from core.merkle import MerkleTree
+from consensus.poa import ProofOfAuthority
 from voting.vote import Vote
 from voting.vote_pool import VotePool
+from voting.ledger import VoteLedger
+from client.verification import VoteVerifier
 
+VALIDATORS  = ["node1", "node2", "node3"]
+SECRET      = "demo_secret"
+CANDIDATES  = ["Alice", "Bob", "Charlie"]
 
-def print_title(text: str) -> None:
-    print("\n" + "=" * 72)
-    print(text)
-    print("=" * 72)
+print("=" * 60)
+print("  Blockchain-Based Voting System — Demo")
+print("=" * 60)
 
+# Инициализация
+blockchain = Blockchain()
+vote_pool  = VotePool(candidates=CANDIDATES)
 
-def main() -> None:
-    validators = ["node1", "node2", "node3"]
-    secret = "shared_poa_secret_2024"
+next_index = blockchain.height
+expected_validator = sorted(VALIDATORS)[(next_index - 1) % len(VALIDATORS)]
+poa = ProofOfAuthority(VALIDATORS, expected_validator, SECRET)
 
-    blockchain = Blockchain()
-    vote_pool = VotePool(candidates=["Alice", "Bob"])
-    poa = ProofOfAuthority(validators=validators, node_id="node1", secret_key=secret)
+ledger     = VoteLedger(blockchain)
+verifier   = VoteVerifier(blockchain)
 
-    print_title("BLOCKCHAIN VOTING SYSTEM DEMO")
+# ─── Шаг 1: Голосование ────────────────────────────────────────────────────
+print("\n[1] Submitting votes...")
+voters = [
+    ("voter_alice_001", "Alice"),
+    ("voter_bob_001",   "Bob"),
+    ("voter_charlie_1", "Alice"),
+    ("voter_dave_001",  "Bob"),
+    ("voter_eve_001",   "Alice"),
+]
 
-    vote_inputs = [
-        ("ivan", "Alice", "2024"),
-        ("maria", "Bob", "2024"),
-        ("alex", "Alice", "2024"),
-    ]
+receipts = {}
+for real_id, candidate in voters:
+    vote = Vote.create(real_id, candidate, salt="election2024")
+    result = vote_pool.add_vote(vote.to_dict())
+    if result["success"]:
+        receipts[real_id] = vote.vote_id
+        print(f"  ✅ {real_id} → {candidate} | receipt: {vote.vote_id[:16]}...")
 
-    created_votes = []
+# ─── Шаг 2: Попытка двойного голосования ──────────────────────────────────
+print("\n[2] Testing double vote prevention...")
+vote2 = Vote.create("voter_alice_001", "Bob", salt="election2024")
+result = vote_pool.add_vote(vote2.to_dict())
+print(f"  Double vote result: {result}")
 
-    print_title("1. SUBMIT VOTES")
-    for real_voter_id, candidate, salt in vote_inputs:
-        vote = Vote.create(real_voter_id, candidate, salt=salt)
-        created_votes.append(vote)
-        result = vote_pool.add_vote(vote.to_dict(), blockchain)
-        print(f"{real_voter_id} -> {candidate}: {result}")
+# ─── Шаг 3: Создание блока (node1 — первый валидатор) ─────────────────────
+print("\n[3] Creating block (node1's turn)...")
+pending = vote_pool.get_pending_votes()
+block = poa.create_block(
+    votes=pending,
+    previous_hash=blockchain.last_block.hash,
+    index=blockchain.height,
+)
+added = blockchain.add_block(block)
+vote_pool.remove_votes({v["vote_id"] for v in pending})
+print(f"  Block #{block.index} added: {added}")
+print(f"  Block hash: {block.hash[:24]}...")
+print(f"  Validator:  {block.validator}")
+print(f"  Votes:      {len(block.votes)}")
 
-    print_title("2. VOTE LOG")
-    for entry in vote_pool.get_log():
-        print(entry)
+# ─── Шаг 4: Верификация PoA подписи ────────────────────────────────────────
+print("\n[4] Verifying PoA signature...")
+valid, msg = poa.validate_block(block)
+print(f"  PoA validation: {'✅' if valid else '❌'} {msg}")
 
-    print_title("3. CREATE BLOCK")
-    pending_votes = vote_pool.get_pending_votes(max_count=10)
-    block = poa.create_block(blockchain, pending_votes)
+# ─── Шаг 5: Merkle Proof ──────────────────────────────────────────────────
+print("\n[5] Merkle Proof verification...")
+vote_id = receipts["voter_alice_001"]
+receipt = verifier.generate_receipt(vote_id)
+if receipt["verified"]:
+    print(f"  Vote found in block #{receipt['block_index']}")
+    proof_ok = VoteVerifier.verify_receipt_locally(
+        vote_id, receipt["merkle_proof"], receipt["merkle_root"]
+    )
+    print(f"  Merkle proof: {'✅ VALID' if proof_ok else '❌ INVALID'}")
 
-    if block is None:
-        print("Block was not created")
-        return
+# ─── Шаг 6: Результаты и аудит ────────────────────────────────────────────
+print("\n[6] Election Results:")
+tally = ledger.tally()
+total = sum(tally.values())
+for c, n in sorted(tally.items(), key=lambda x: -x[1]):
+    bar = "█" * n
+    print(f"  {c:<10} {bar} {n} ({n/total*100:.0f}%)")
 
-    added = blockchain.add_block(block)
-    print(f"Block added: {added}")
+print("\n[7] Ledger Validation:")
+audit = ledger.validate_ledger()
+print(f"  Total votes:     {audit['total_votes']}")
+print(f"  Unique voters:   {audit['unique_voters']}")
+print(f"  Ledger valid:    {'✅' if audit['ledger_valid'] else '❌'}")
 
-    confirmed_vote_ids = {vote["vote_id"] for vote in pending_votes}
-    vote_pool.remove_votes(confirmed_vote_ids)
-
-    print_title("4. RESULTS")
-    ledger = VoteLedger(blockchain)
-    tally = ledger.tally()
-    total_votes = sum(tally.values())
-
-    for candidate, votes in sorted(tally.items(), key=lambda item: (-item[1], item[0])):
-        percent = 0.0 if total_votes == 0 else (votes / total_votes) * 100
-        bar = "█" * round(percent / 5)
-        print(f"{candidate:<14} {bar:<20} {votes} votes ({percent:.0f}%)")
-
-    print_title("5. VALIDATE LEDGER")
-    ledger_report = ledger.validate_ledger()
-    print(ledger_report)
-
-    print_title("6. MERKLE RECEIPT")
-    verifier = VoteVerifier(blockchain)
-    target_vote_id = created_votes[0].vote_id
-    receipt = verifier.generate_receipt(target_vote_id)
-    print(receipt)
-
-    print_title("7. LOCAL VERIFICATION")
-    if receipt.get("success"):
-        local_ok = VoteVerifier.verify_receipt_locally(
-            receipt["vote_id"],
-            receipt["proof"],
-            receipt["merkle_root"],
-        )
-        print({"local_verification": local_ok})
-
-    print_title("8. FULL AUDIT")
-    audit = verifier.full_audit()
-    print(audit)
-
-
-if __name__ == "__main__":
-    main()
+print("\n[8] Chain Validity:", "✅" if blockchain.is_valid_chain() else "❌")
+print(f"  Chain height: {blockchain.height} blocks")
+print("\n" + "=" * 60)
+print("  Demo complete!")
+print("=" * 60)

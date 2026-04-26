@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Sequence
 
 from core.merkle import MerkleTree
 from voting.ledger import VoteLedger
@@ -25,27 +25,33 @@ class VoteVerifier:
                 continue
 
             merkle_tree = MerkleTree(vote_ids)
-            index = vote_ids.index(vote_id)
-            proof = merkle_tree.get_proof(index)
+            proof = merkle_tree.get_proof(vote_id)
 
             return {
                 "success": True,
+                "verified": True,
                 "vote_id": vote_id,
                 "block_index": block.index,
                 "block_hash": block.hash,
                 "validator": getattr(block, "validator", None),
                 "merkle_root": merkle_tree.root,
                 "proof": proof,
+                "merkle_proof": proof,
             }
 
         return {
             "success": False,
+            "verified": False,
             "reason": "Vote not found in confirmed blocks",
             "vote_id": vote_id,
         }
 
     @staticmethod
-    def verify_receipt_locally(vote_id: str, proof: List[Dict[str, str]], root: str) -> bool:
+    def verify_receipt_locally(
+        vote_id: str,
+        proof: Sequence[Sequence[str]],
+        root: str,
+    ) -> bool:
         return MerkleTree.verify_proof(vote_id, proof, root)
 
     def full_audit(self) -> Dict[str, Any]:
@@ -78,7 +84,7 @@ class VoteVerifier:
             bool(chain_valid)
             and len(duplicate_vote_ids) == 0
             and len(duplicate_voter_ids) == 0
-            and bool(ledger_report.get("success", True))
+            and bool(ledger_report.get("valid", False))
         )
 
         return {

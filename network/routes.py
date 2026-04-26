@@ -61,17 +61,14 @@ def create_routes(node) -> Blueprint:
     def submit_vote():
         vote = request.get_json() or {}
         if node.vote_pool.already_voted_in_chain(vote.get("voter_id"), node.blockchain):
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "reason": "Voter already has a confirmed vote",
-                    }
-                ),
-                409,
+            return jsonify(
+                {
+                    "success": False,
+                    "reason": "Voter already has a confirmed vote",
+                }
             )
 
-        result = node.vote_pool.add_vote(vote)
+        result = node.vote_pool.add_vote(vote, node.blockchain)
         if result["success"]:
             node.broadcast_vote(vote)
 
@@ -80,7 +77,7 @@ def create_routes(node) -> Blueprint:
     @bp.route("/votes/receive", methods=["POST"])
     def receive_vote():
         vote = request.get_json() or {}
-        result = node.vote_pool.add_vote(vote)
+        result = node.vote_pool.add_vote(vote, node.blockchain)
         return jsonify(result)
 
     @bp.route("/votes/pending", methods=["GET"])

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import requests
 
@@ -12,7 +12,7 @@ class VotingClient:
         self.node_url = node_url.rstrip("/")
         self.timeout = 3
 
-    def _get(self, path: str) -> Dict[str, Any]:
+    def _get(self, path: str) -> Any:
         response = requests.get(f"{self.node_url}{path}", timeout=self.timeout)
         response.raise_for_status()
         return response.json()
@@ -27,8 +27,14 @@ class VotingClient:
         payload = vote.to_dict()
         return self._post("/votes/submit", payload)
 
-    def get_chain(self) -> Dict[str, Any]:
+    def get_chain(self) -> Any:
         return self._get("/chain")
+
+    @staticmethod
+    def _extract_chain(chain_data: Union[Dict[str, Any], List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+        if isinstance(chain_data, dict):
+            return chain_data.get("chain", [])
+        return chain_data
 
     def get_status(self) -> Dict[str, Any]:
         return self._get("/status")
@@ -40,8 +46,7 @@ class VotingClient:
         return self._get("/votes/pending")
 
     def verify_vote(self, vote_id: str) -> Dict[str, Any]:
-        chain_data = self.get_chain()
-        chain = chain_data.get("chain", chain_data)
+        chain = self._extract_chain(self.get_chain())
 
         from core.blockchain import Blockchain
         from client.verification import VoteVerifier
@@ -63,8 +68,7 @@ class VotingClient:
         return receipt
 
     def get_results(self) -> Dict[str, Any]:
-        chain_data = self.get_chain()
-        chain = chain_data.get("chain", chain_data)
+        chain = self._extract_chain(self.get_chain())
 
         from core.blockchain import Blockchain
         from voting.ledger import VoteLedger
@@ -92,8 +96,7 @@ class VotingClient:
         }
 
     def validate_ledger(self) -> Dict[str, Any]:
-        chain_data = self.get_chain()
-        chain = chain_data.get("chain", chain_data)
+        chain = self._extract_chain(self.get_chain())
 
         from core.blockchain import Blockchain
         from client.verification import VoteVerifier

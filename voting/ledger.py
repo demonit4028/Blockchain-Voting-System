@@ -38,8 +38,11 @@ class VoteLedger:
         is_valid = (len(duplicate_vote_ids) == 0 and len(duplicate_voter_ids) == 0)
         
         return {
+            "success": is_valid,
             "valid": is_valid,
+            "ledger_valid": is_valid,
             "total_votes": len(all_votes),
+            "unique_voters": len(set(voter_ids)),
             "duplicate_vote_ids": duplicate_vote_ids,
             "duplicate_voter_ids": duplicate_voter_ids,
             "message": "✅ Ledger is valid (no duplicates)" if is_valid 

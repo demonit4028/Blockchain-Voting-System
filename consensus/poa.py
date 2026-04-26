@@ -22,6 +22,8 @@ class ProofOfAuthority:
         secret_key  — общий секрет для подписи/верификации
         """
         self.validators = sorted(validators)
+        if not self.validators:
+            raise ValueError("At least one validator is required")
         self.node_id = node_id
         self.secret_key = secret_key
 
@@ -29,7 +31,9 @@ class ProofOfAuthority:
 
     def expected_validator(self, block_index: int) -> str:
         """Кто должен создать блок с данным индексом (round-robin)."""
-        return self.validators[block_index % len(self.validators)]
+        if block_index <= 0:
+            return self.validators[0]
+        return self.validators[(block_index - 1) % len(self.validators)]
 
     def is_my_turn(self, block_index: int) -> bool:
         """Является ли этот узел следующим валидатором."""
