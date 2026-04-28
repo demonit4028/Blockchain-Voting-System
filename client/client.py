@@ -10,7 +10,7 @@ from voting.vote import Vote
 class VotingClient:
     def __init__(self, node_url: str):
         self.node_url = node_url.rstrip("/")
-        self.timeout = 3
+        self.timeout = 10
 
     def _get(self, path: str) -> Any:
         response = requests.get(f"{self.node_url}{path}", timeout=self.timeout)

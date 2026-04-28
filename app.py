@@ -67,6 +67,11 @@ def create_app(node_id, host, port, validators, secret_key, seed_peers):
             if poa.is_my_turn(next_index):
                 pending = vote_pool.get_pending_votes(max_count=20)
                 if pending:
+                    # Filter out votes already confirmed on-chain (race guard)
+                    confirmed_ids = {v["vote_id"] for v in blockchain.get_all_votes()}
+                    pending = [v for v in pending if v["vote_id"] not in confirmed_ids]
+                    if not pending:
+                        continue
                     block = poa.create_block(
                         votes=pending,
                         previous_hash=blockchain.last_block.hash,
