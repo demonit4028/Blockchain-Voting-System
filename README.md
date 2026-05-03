@@ -8,7 +8,7 @@ The project demonstrates the core ideas behind blockchain voting:
 - confirmed votes stored in a blockchain;
 - chain integrity checks through block hashes;
 - Proof of Authority with round-robin validator rotation;
-- Merkle proofs for verifying that a vote was included in a block;
+- Merkle roots stored in blocks and Merkle proofs for compact vote inclusion verification;
 - a local CLI client and Flask API for node interaction.
 
 ## Project Structure
@@ -66,9 +66,10 @@ The demo:
 2. Submits several votes.
 3. Tests double-vote prevention.
 4. Creates a block containing the votes.
-5. Verifies the PoA signature.
-6. Verifies a Merkle proof for one vote.
-7. Prints election results and a ledger audit.
+5. Shows the block hash and stored Merkle root.
+6. Verifies the PoA signature.
+7. Verifies a compact Merkle proof for one vote receipt.
+8. Prints election results and a ledger audit.
 
 ## Running Three Local Nodes
 
@@ -135,6 +136,8 @@ Verify a vote:
 python client/cli.py --node http://localhost:5001 verify \
   --vote-id <vote_id>
 ```
+
+The client asks the node for a compact receipt and then verifies the Merkle proof locally. It does not need to download the full chain for this verification step.
 
 Show results:
 
@@ -208,10 +211,11 @@ The vote pool audit log records every submission attempt with:
 4. The vote is added to `VotePool`.
 5. The node broadcasts the vote to its peers.
 6. When a validator's turn arrives, it collects pending votes into a block.
-7. The block is signed with the PoA signature and appended to the chain.
-8. The node broadcasts the block to its peers.
-9. Other nodes validate the PoA signature, block index, previous hash, and block hash.
-10. Once confirmed, the vote can be verified by its `vote_id`.
+7. The block stores a Merkle root computed from the included `vote_id` values.
+8. The block hash commits to the Merkle root, and the PoA signature signs that block hash.
+9. The node broadcasts the block to its peers.
+10. Other nodes validate the PoA signature, block index, previous hash, Merkle root, and block hash.
+11. Once confirmed, the vote can be verified by its `vote_id`.
 
 ## Proof of Authority
 
@@ -241,7 +245,7 @@ After a vote is submitted, it receives a `vote_id`. Once the vote is included in
 /verify/<vote_id>
 ```
 
-returns:
+returns a compact receipt:
 
 - block index;
 - block hash;
@@ -249,7 +253,33 @@ returns:
 - Merkle root;
 - Merkle proof.
 
-The local Merkle proof check verifies that the given `vote_id` belongs to the set of votes stored in that block.
+Example receipt shape:
+
+```json
+{
+  "success": true,
+  "verified": true,
+  "vote_id": "saved-vote-id",
+  "block_index": 1,
+  "block_hash": "confirmed-block-hash",
+  "validator": "node1",
+  "merkle_root": "root-stored-in-the-block",
+  "proof": [
+    ["sibling-hash", "right"]
+  ],
+  "proof_length": 1
+}
+```
+
+Each block stores a `merkle_root` that is computed from the `vote_id` values included in that block. The Merkle root is part of the block hash, and the PoA signature signs that block hash. This means the receipt is tied to the confirmed block rather than being an arbitrary proof generated after the fact.
+
+The local Merkle proof check verifies that:
+
+```text
+hash(vote_id) + proof path -> merkle_root stored in the block
+```
+
+If the recomputed root matches the receipt root, the `vote_id` is included in the block committed by that Merkle root.
 
 ## Limitations
 

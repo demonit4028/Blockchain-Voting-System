@@ -50,6 +50,8 @@ class Blockchain:
             return False
         if block.previous_hash != last.hash:
             return False
+        if block.merkle_root != block.compute_merkle_root():
+            return False
         if block.hash != block.compute_hash():
             return False
         return True
@@ -60,6 +62,8 @@ class Blockchain:
             curr = self.chain[i]
             prev = self.chain[i - 1]
             if curr.previous_hash != prev.hash:
+                return False
+            if curr.merkle_root != curr.compute_merkle_root():
                 return False
             if curr.hash != curr.compute_hash():
                 return False

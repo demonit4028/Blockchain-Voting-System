@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 import requests
 
@@ -46,14 +46,9 @@ class VotingClient:
         return self._get("/votes/pending")
 
     def verify_vote(self, vote_id: str) -> Dict[str, Any]:
-        chain = self._extract_chain(self.get_chain())
-
-        from core.blockchain import Blockchain
         from client.verification import VoteVerifier
 
-        blockchain = Blockchain.from_dict(chain)
-        verifier = VoteVerifier(blockchain)
-        receipt = verifier.generate_receipt(vote_id)
+        receipt = self._get(f"/verify/{vote_id}")
 
         if not receipt.get("success"):
             return receipt

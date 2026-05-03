@@ -43,7 +43,9 @@ def cmd_verify(client: VotingClient, args: argparse.Namespace) -> None:
     status = "✅ PASSED" if result.get("local_verification") else "❌ FAILED"
     print(f"✅ Vote is confirmed in block #{result['block_index']}")
     print(f"   Block hash:    {result['block_hash']}")
+    print(f"   Validator:     {result.get('validator')}")
     print(f"   Merkle root:   {result['merkle_root']}")
+    print(f"   Proof items:   {result.get('proof_length', len(result.get('proof', [])))}")
     print(f"🔐 Local Merkle verification: {status}")
 
 

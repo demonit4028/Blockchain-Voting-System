@@ -6,7 +6,6 @@
 import time
 
 from core.blockchain import Blockchain
-from core.merkle import MerkleTree
 from consensus.poa import ProofOfAuthority
 from voting.vote import Vote
 from voting.vote_pool import VotePool
@@ -68,6 +67,7 @@ added = blockchain.add_block(block)
 vote_pool.remove_votes({v["vote_id"] for v in pending})
 print(f"  Block #{block.index} added: {added}")
 print(f"  Block hash: {block.hash[:24]}...")
+print(f"  Merkle root: {block.merkle_root[:24]}...")
 print(f"  Validator:  {block.validator}")
 print(f"  Votes:      {len(block.votes)}")
 
@@ -82,6 +82,8 @@ vote_id = receipts["voter_alice_001"]
 receipt = verifier.generate_receipt(vote_id)
 if receipt["verified"]:
     print(f"  Vote found in block #{receipt['block_index']}")
+    print(f"  Receipt root: {receipt['merkle_root'][:24]}...")
+    print(f"  Proof items:  {receipt['proof_length']}")
     proof_ok = VoteVerifier.verify_receipt_locally(
         vote_id, receipt["merkle_proof"], receipt["merkle_root"]
     )

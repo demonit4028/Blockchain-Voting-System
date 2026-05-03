@@ -25,6 +25,15 @@ class VoteVerifier:
                 continue
 
             merkle_tree = MerkleTree(vote_ids)
+            if merkle_tree.root != getattr(block, "merkle_root", ""):
+                return {
+                    "success": False,
+                    "verified": False,
+                    "reason": "Block Merkle root does not match block votes",
+                    "vote_id": vote_id,
+                    "block_index": block.index,
+                }
+
             proof = merkle_tree.get_proof(vote_id)
 
             return {
@@ -34,9 +43,10 @@ class VoteVerifier:
                 "block_index": block.index,
                 "block_hash": block.hash,
                 "validator": getattr(block, "validator", None),
-                "merkle_root": merkle_tree.root,
+                "merkle_root": block.merkle_root,
                 "proof": proof,
                 "merkle_proof": proof,
+                "proof_length": len(proof or []),
             }
 
         return {
